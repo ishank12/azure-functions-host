@@ -123,13 +123,6 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Configuration
                 (nameof(FunctionsHostingConfigOptions.ShutdownWebhostWorkerChannelsOnHostShutdown), string.Empty, true), // default
 
                 // Supports True/False/1/0
-                (nameof(FunctionsHostingConfigOptions.SwtAuthenticationEnabled), "SwtAuthenticationEnabled=False", false),
-                (nameof(FunctionsHostingConfigOptions.SwtAuthenticationEnabled), "SwtAuthenticationEnabled=True", true),
-                (nameof(FunctionsHostingConfigOptions.SwtAuthenticationEnabled), "SwtAuthenticationEnabled=0", false),
-                (nameof(FunctionsHostingConfigOptions.SwtAuthenticationEnabled), "SwtAuthenticationEnabled=unparseable", false), // default
-                (nameof(FunctionsHostingConfigOptions.SwtAuthenticationEnabled), string.Empty, false), // default
-
-                // Supports True/False/1/0
                 (nameof(FunctionsHostingConfigOptions.SwtIssuerEnabled), "SwtIssuerEnabled=False", false),
                 (nameof(FunctionsHostingConfigOptions.SwtIssuerEnabled), "SwtIssuerEnabled=True", true),
                 (nameof(FunctionsHostingConfigOptions.SwtIssuerEnabled), "SwtIssuerEnabled=0", false),
@@ -138,7 +131,11 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Configuration
 
                 (nameof(FunctionsHostingConfigOptions.ThrowOnMissingFunctionsWorkerRuntime), "THROW_ON_MISSING_FUNCTIONS_WORKER_RUNTIME=1", true),
                 (nameof(FunctionsHostingConfigOptions.WorkerIndexingDisabledApps), "WORKER_INDEXING_DISABLED_APPS=teststring", "teststring"),
-                (nameof(FunctionsHostingConfigOptions.WorkerIndexingEnabled), "WORKER_INDEXING_ENABLED=1", true)
+                (nameof(FunctionsHostingConfigOptions.WorkerIndexingEnabled), "WORKER_INDEXING_ENABLED=1", true),
+                (nameof(FunctionsHostingConfigOptions.WorkerRuntimeStrictValidationEnabled), "WORKER_RUNTIME_STRICT_VALIDATION_ENABLED=1", true),
+
+                (nameof(FunctionsHostingConfigOptions.InternalAuthApisAllowList), "InternalAuthApisAllowList=|", "|"),
+                (nameof(FunctionsHostingConfigOptions.InternalAuthApisAllowList), "InternalAuthApisAllowList=/admin/host/foo|/admin/host/bar", "/admin/host/foo|/admin/host/bar")
             };
 
             // use reflection to ensure that we have a test that uses every value exposed on FunctionsHostingConfigOptions
@@ -247,23 +244,6 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Configuration
         }
 
         [Fact]
-        public void SwtAuthenticationEnabled_ReturnsExpectedValue()
-        {
-            FunctionsHostingConfigOptions options = new FunctionsHostingConfigOptions();
-
-            // defaults to false
-            Assert.False(options.SwtAuthenticationEnabled);
-
-            // returns true when explicitly enabled
-            options.Features[ScriptConstants.HostingConfigSwtAuthenticationEnabled] = "1";
-            Assert.True(options.SwtAuthenticationEnabled);
-
-            // returns false when disabled
-            options.Features[ScriptConstants.HostingConfigSwtAuthenticationEnabled] = "0";
-            Assert.False(options.SwtAuthenticationEnabled);
-        }
-
-        [Fact]
         public void SwtIssuerEnabled_ReturnsExpectedValue()
         {
             FunctionsHostingConfigOptions options = new FunctionsHostingConfigOptions();
@@ -278,6 +258,20 @@ namespace Microsoft.Azure.WebJobs.Script.Tests.Configuration
             // returns false when disabled
             options.Features[ScriptConstants.HostingConfigSwtIssuerEnabled] = "0";
             Assert.False(options.SwtIssuerEnabled);
+        }
+
+        [Fact]
+        public void InternalAuthApisAllowList_ReturnsExpectedValue()
+        {
+            FunctionsHostingConfigOptions options = new FunctionsHostingConfigOptions();
+
+            Assert.Null(options.InternalAuthApisAllowList);
+
+            options.InternalAuthApisAllowList = string.Empty;
+            Assert.Equal(string.Empty, options.InternalAuthApisAllowList);
+
+            options.InternalAuthApisAllowList = "/admin/host/synctriggers|/admin/host/status";
+            Assert.Equal("/admin/host/synctriggers|/admin/host/status", options.InternalAuthApisAllowList);
         }
 
         internal static IHostBuilder GetScriptHostBuilder(string fileName, string fileContent)

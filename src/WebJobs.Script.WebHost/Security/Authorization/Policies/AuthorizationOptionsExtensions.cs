@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Script.Extensions;
 using Microsoft.Azure.WebJobs.Script.WebHost.Authentication;
+using Microsoft.Azure.WebJobs.Script.WebHost.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.Azure.WebJobs.Script.WebHost.Security.Authorization.Policies
@@ -52,7 +53,8 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Security.Authorization.Policies
                             return false;
                         }
 
-                        if (filterContext.HttpContext.Request.IsAppServiceInternalRequest())
+                        if (filterContext.HttpContext.Request.IsAppServiceInternalRequest() &&
+                            filterContext.HttpContext.Request.IsInternalAuthAllowed())
                         {
                             return true;
                         }
@@ -74,7 +76,8 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Security.Authorization.Policies
                 {
                     if (c.Resource is AuthorizationFilterContext filterContext)
                     {
-                        if (filterContext.HttpContext.Request.IsAppServiceInternalRequest())
+                        if (filterContext.HttpContext.Request.IsAppServiceInternalRequest() &&
+                            filterContext.HttpContext.Request.IsInternalAuthAllowed())
                         {
                             return true;
                         }
@@ -107,7 +110,6 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost.Security.Authorization.Policies
 
         private static void AddScriptAuthenticationSchemes(this AuthorizationPolicyBuilder builder)
         {
-            builder.AuthenticationSchemes.Add(ArmAuthenticationDefaults.AuthenticationScheme);
             builder.AuthenticationSchemes.Add(AuthLevelAuthenticationDefaults.AuthenticationScheme);
             builder.AuthenticationSchemes.Add(JwtBearerDefaults.AuthenticationScheme);
         }

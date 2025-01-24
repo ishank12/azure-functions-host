@@ -50,7 +50,7 @@ namespace Microsoft.Azure.WebJobs.Script
         /// Running using either "DebugPlaceholder" or "ReleasePlaceholder" configuration mode will
         /// cause the host to run in placeholder simulation mode.
         /// </summary>
-#if PLACEHOLDERSIMULATION
+#if PLACEHOLDER_SIMULATION
         public const bool IsInPlaceholderSimulationMode = true;
 #else
         public const bool IsInPlaceholderSimulationMode = false;
@@ -629,7 +629,7 @@ namespace Microsoft.Azure.WebJobs.Script
             return true;
         }
 
-        internal static void VerifyFunctionsMatchSpecifiedLanguage(IEnumerable<FunctionMetadata> functions, string workerRuntime, bool isPlaceholderMode, bool isHttpWorker, CancellationToken cancellationToken)
+        internal static void VerifyFunctionsMatchSpecifiedLanguage(IEnumerable<FunctionMetadata> functions, string workerRuntime, bool isPlaceholderMode, bool isHttpWorker, CancellationToken cancellationToken, bool throwOnMismatch = true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -646,7 +646,10 @@ namespace Microsoft.Azure.WebJobs.Script
                 }
                 else
                 {
-                    throw new HostInitializationException($"Did not find functions with language [{workerRuntime}].");
+                    if (throwOnMismatch)
+                    {
+                        throw new HostInitializationException($"Did not find functions with language [{workerRuntime}].");
+                    }
                 }
             }
         }
@@ -748,10 +751,20 @@ namespace Microsoft.Azure.WebJobs.Script
             {
                 return functions.Any(f => dotNetLanguages.Any(l => l.Equals(f.Language, StringComparison.OrdinalIgnoreCase)));
             }
+
+            return ContainsAnyFunctionMatchingWorkerRuntime(functions, workerRuntime);
+        }
+
+        /// <summary>
+        /// Inspect the functions metadata to determine if at least one function is of the specified worker runtime.
+        /// </summary>
+        internal static bool ContainsAnyFunctionMatchingWorkerRuntime(IEnumerable<FunctionMetadata> functions, string workerRuntime)
+        {
             if (functions != null && functions.Any())
             {
                 return functions.Any(f => !string.IsNullOrEmpty(f.Language) && f.Language.Equals(workerRuntime, StringComparison.OrdinalIgnoreCase));
             }
+
             return false;
         }
 
@@ -870,7 +883,7 @@ namespace Microsoft.Azure.WebJobs.Script
 
         /// <summary>
         /// Utility function to validate a blob URL by attempting to retrieve the account name from it.
-        /// Borrowed from https://github.com/Azure/azure-sdk-for-net/blob/e0fd1cd415d8339947b20c3565c7adc7d7f60fbe/sdk/storage/Azure.Storage.Common/src/Shared/UriExtensions.cs
+        /// Borrowed from https://github.com/Azure/azure-sdk-for-net/blob/e0fd1cd415d8339947b20c3565c7adc7d7f60fbe/sdk/storage/Azure.Storage.Common/src/Shared/UriExtensions.cs.
         /// </summary>
         private static string GetAccountNameFromDomain(string domain)
         {

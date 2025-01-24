@@ -70,7 +70,7 @@ namespace Microsoft.Azure.WebJobs.Script.Grpc
         private ConcurrentDictionary<string, ExecutingInvocation> _executingInvocations = new();
         private IDictionary<string, BufferBlock<ScriptInvocationContext>> _functionInputBuffers = new ConcurrentDictionary<string, BufferBlock<ScriptInvocationContext>>();
         private ConcurrentDictionary<string, TaskCompletionSource<bool>> _workerStatusRequests = new ConcurrentDictionary<string, TaskCompletionSource<bool>>();
-        private List<IDisposable> _inputLinks = new List<IDisposable>();
+        private ConcurrentBag<IDisposable> _inputLinks = new ConcurrentBag<IDisposable>();
         private List<IDisposable> _eventSubscriptions = new List<IDisposable>();
         private IDisposable _startLatencyMetric;
         private IEnumerable<FunctionMetadata> _functions;
@@ -586,10 +586,11 @@ namespace Microsoft.Azure.WebJobs.Script.Grpc
             _functions = functions;
             foreach (FunctionMetadata metadata in functions)
             {
-                _workerChannelLogger.LogDebug("Setting up FunctionInvocationBuffer for function: '{functionName}' with functionId: '{functionId}'", metadata.Name, metadata.GetFunctionId());
-                _functionInputBuffers[metadata.GetFunctionId()] = new BufferBlock<ScriptInvocationContext>();
+                string functionId = metadata.GetFunctionId();
+                _workerChannelLogger.LogDebug("Setting up FunctionInvocationBuffer for function: '{functionName}' with functionId: '{functionId}'", metadata.Name, functionId);
+                _functionInputBuffers[functionId] = new BufferBlock<ScriptInvocationContext>();
             }
-            _state = _state | RpcWorkerChannelState.InvocationBuffersInitialized;
+            _state |= RpcWorkerChannelState.InvocationBuffersInitialized;
         }
 
         public void SendFunctionLoadRequests(ManagedDependencyOptions managedDependencyOptions, TimeSpan? functionTimeout)
@@ -742,7 +743,11 @@ namespace Microsoft.Azure.WebJobs.Script.Grpc
         internal void SendFunctionLoadRequest(FunctionMetadata metadata, ManagedDependencyOptions managedDependencyOptions)
         {
             _functionLoadRequestResponseEvent = _metricsLogger.LatencyEvent(MetricEventNames.FunctionLoadRequestResponse);
-            _workerChannelLogger.LogDebug("Sending FunctionLoadRequest for function: '{functionName}' with functionId: '{functionId}'", metadata.Name, metadata.GetFunctionId());
+
+            if (_workerChannelLogger.IsEnabled(LogLevel.Debug))
+            {
+                _workerChannelLogger.LogDebug("Sending FunctionLoadRequest for function: '{functionName}' with functionId: '{functionId}'", metadata.Name, metadata.GetFunctionId());
+            }
 
             // send a load request for the registered function
             SendStreamingMessage(new StreamingMessage
@@ -838,20 +843,21 @@ namespace Microsoft.Azure.WebJobs.Script.Grpc
         {
             try
             {
-                var invocationId = context.ExecutionContext.InvocationId.ToString();
+                string invocationId = context.ExecutionContext.InvocationId.ToString();
+                string functionId = context.FunctionMetadata.GetFunctionId();
 
                 // do not send an invocation request for functions that failed to load or could not be indexed by the worker
-                if (_functionLoadErrors.ContainsKey(context.FunctionMetadata.GetFunctionId()))
+                if (_functionLoadErrors.TryGetValue(functionId, out Exception exception))
                 {
                     _workerChannelLogger.LogDebug("Function {functionName} failed to load", context.FunctionMetadata.Name);
-                    context.ResultSource.TrySetException(_functionLoadErrors[context.FunctionMetadata.GetFunctionId()]);
+                    context.ResultSource.TrySetException(exception);
                     RemoveExecutingInvocation(invocationId);
                     return;
                 }
-                else if (_metadataRequestErrors.ContainsKey(context.FunctionMetadata.GetFunctionId()))
+                else if (_metadataRequestErrors.TryGetValue(functionId, out exception))
                 {
                     _workerChannelLogger.LogDebug("Worker failed to load metadata for {functionName}", context.FunctionMetadata.Name);
-                    context.ResultSource.TrySetException(_metadataRequestErrors[context.FunctionMetadata.GetFunctionId()]);
+                    context.ResultSource.TrySetException(exception);
                     RemoveExecutingInvocation(invocationId);
                     return;
                 }
